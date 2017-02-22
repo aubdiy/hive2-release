@@ -66,6 +66,9 @@ import org.apache.hive.jdbc.Utils;
 import org.apache.hive.jdbc.Utils.JdbcConnectionParams;
 import org.apache.hive.jdbc.logs.InPlaceUpdateStream;
 
+import com.google.common.annotations.VisibleForTesting;
+
+
 public class Commands {
   private final BeeLine beeLine;
   private static final int DEFAULT_QUERY_PROGRESS_INTERVAL = 1000;
@@ -1041,11 +1044,41 @@ public class Commands {
     return true;
   }
 
+  //startQuote use array type in order to pass int type as input/output parameter.
+  //This method remove comment from current line of a query.
+  //It does not remove comment like strings inside quotes.
+  @VisibleForTesting
+  String removeComments(String line, int[] startQuote) {
+    if (line == null || line.isEmpty()) return line;
+    if (startQuote[0] == -1 && beeLine.isComment(line)) return "";  //assume # can only be used at the beginning of line.
+    StringBuilder builder = new StringBuilder();
+    for (int index = 0; index < line.length(); index++) {
+      if (startQuote[0] == -1 && index < line.length() - 1 && line.charAt(index) == '-' && line.charAt(index + 1) =='-') {
+        return builder.toString().trim();
+      }
+
+      char letter = line.charAt(index);
+      if (startQuote[0] == letter && (index == 0 || line.charAt(index -1) != '\\') ) {
+        startQuote[0] = -1; // Turn escape off.
+      } else if (startQuote[0] == -1 && (letter == '\'' || letter == '"') && (index == 0 || line.charAt(index -1) != '\\')) {
+        startQuote[0] = letter; // Turn escape on.
+      }
+
+      builder.append(letter);
+    }
+
+    return builder.toString().trim();
+  }
+
+  /*
+   * Check if the input line is a multi-line command which needs to read further
+   */
   public String handleMultiLineCmd(String line) throws IOException {
-    //When using -e, console reader is not initialized and command is a single line
+    //When using -e, console reader is not initialized and command is always a single line
+    int[] startQuote = {-1};
+    line = removeComments(line,startQuote);
     while (beeLine.getConsoleReader() != null && !(line.trim().endsWith(";")) && beeLine.getOpts()
         .isAllowMultiLineCommand()) {
-
       StringBuilder prompt = new StringBuilder(beeLine.getPrompt());
       if (!beeLine.getOpts().isSilent()) {
         for (int i = 0; i < prompt.length() - 1; i++) {
@@ -1065,7 +1098,8 @@ public class Commands {
       if (extra == null) { //it happens when using -f and the line of cmds does not end with ;
         break;
       }
-      if (!beeLine.isComment(extra)) {
+      extra = removeComments(extra,startQuote);
+      if (extra != null && !extra.isEmpty()) {
         line += "\n" + extra;
       }
     }
