@@ -11,19 +11,23 @@ POSTHOOK: Output: default@numt
 PREHOOK: query: --comment2
 insert into numt values(1)
 PREHOOK: type: QUERY
+PREHOOK: Input: default@values__tmp__table__1
 PREHOOK: Output: default@numt
 POSTHOOK: query: --comment2
 insert into numt values(1)
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@values__tmp__table__1
 POSTHOOK: Output: default@numt
 POSTHOOK: Lineage: numt.idx EXPRESSION [(values__tmp__table__1)values__tmp__table__1.FieldSchema(name:tmp_values_col1, type:string, comment:), ]
 PREHOOK: query: --comment3
 insert into numt values(2)
 PREHOOK: type: QUERY
+PREHOOK: Input: default@values__tmp__table__2
 PREHOOK: Output: default@numt
 POSTHOOK: query: --comment3
 insert into numt values(2)
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@values__tmp__table__2
 POSTHOOK: Output: default@numt
 POSTHOOK: Lineage: numt.idx EXPRESSION [(values__tmp__table__2)values__tmp__table__2.FieldSchema(name:tmp_values_col1, type:string, comment:), ]
 PREHOOK: query: select idx from numt where --comment5
@@ -63,12 +67,23 @@ POSTHOOK: Input: default@numt
 this is
 another --string value
 PREHOOK: query: --comment8
-drop table numt
+select 1, --comment
+2
+PREHOOK: type: QUERY
+PREHOOK: Input: _dummy_database@_dummy_table
+#### A masked pattern was here ####
+POSTHOOK: query: --comment8
+select 1, --comment
+2
+POSTHOOK: type: QUERY
+POSTHOOK: Input: _dummy_database@_dummy_table
+#### A masked pattern was here ####
+1	2
+PREHOOK: query: drop table numt
 PREHOOK: type: DROPTABLE
 PREHOOK: Input: default@numt
 PREHOOK: Output: default@numt
-POSTHOOK: query: --comment8
-drop table numt
+POSTHOOK: query: drop table numt
 POSTHOOK: type: DROPTABLE
 POSTHOOK: Input: default@numt
 POSTHOOK: Output: default@numt
