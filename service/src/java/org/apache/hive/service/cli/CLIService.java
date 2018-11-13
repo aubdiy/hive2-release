@@ -482,7 +482,7 @@ public class CLIService extends CompositeService implements ICLIService {
         || !OperationType.EXECUTE_STATEMENT.equals(operation.getType())) {
       return new JobProgressUpdate(ProgressMonitor.NULL);
     }
-    
+
     SessionState sessionState = operation.getParentSession().getSessionState();
     long startTime = System.nanoTime();
     int timeOutMs = 8;
@@ -557,7 +557,7 @@ public class CLIService extends CompositeService implements ICLIService {
   }
 
   // obtain delegation token for the give user from metastore
-  public synchronized String getDelegationTokenFromMetaStore(String owner)
+  public String getDelegationTokenFromMetaStore(String owner)
       throws HiveSQLException, UnsupportedOperationException, LoginException, IOException {
     HiveConf hiveConf = getHiveConf();
     if (!hiveConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL) ||
