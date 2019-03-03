@@ -2901,7 +2901,8 @@ private void constructOneLBLocationMap(FileStatus fSta,
         final boolean needToCopy = needToCopy(srcP, destf, srcFs, destFs);
 
         final boolean isRenameAllowed = !needToCopy && !isSrcLocal;
-
+        final String name = FilenameUtils.getBaseName(srcP.getName());
+        final String filetype = FilenameUtils.getExtension(srcP.getName());
 
         // If we do a rename for a non-local file, we will be transfering the original
         // file permissions from source to the destination. Else, in case of mvFile() where we
@@ -2909,25 +2910,23 @@ private void constructOneLBLocationMap(FileStatus fSta,
         final String srcGroup = isRenameAllowed ? srcFile.getGroup() :
           fullDestStatus.getFileStatus().getGroup();
         if (null == pool) {
-          try {
-            Path destPath = mvFile(conf, srcFs, srcP, destFs, destf, isSrcLocal, isOverwrite, isRenameAllowed);
-            if (inheritPerms) {
-              HdfsUtils.setFullFileStatus(conf, fullDestStatus, destFs, destPath, false);
-            }
+          Path destPath = rename(srcP, destFs, destf, name, filetype, isRenameAllowed,
+              isOverwrite, isSrcLocal, srcFs, conf);
+          if (inheritPerms) {
+            HdfsUtils.setFullFileStatus(conf, fullDestStatus, destFs, destPath, false);
+          }
 
-            if (null != newFiles) {
-              newFiles.add(destPath);
-            }
-          } catch (IOException ioe) {
-            LOG.error("Failed to move: {}", ioe.getMessage());
-            throw new HiveException(ioe.getCause());
+          if (null != newFiles) {
+            newFiles.add(destPath);
           }
         } else {
           futures.add(pool.submit(new Callable<ObjectPair<Path, Path>>() {
             @Override
             public ObjectPair<Path, Path> call() throws Exception {
               SessionState.setCurrentSessionState(parentSession);
-              Path destPath = mvFile(conf, srcFs, srcP, destFs, destf, isSrcLocal, isOverwrite, isRenameAllowed);
+              LOG.debug("copying file " + srcP);
+              Path destPath = rename(srcP, destFs, destf, name, filetype, isRenameAllowed,
+                  isOverwrite, isSrcLocal, srcFs, conf);
 
               if (inheritPerms) {
                 // TODO: These are all files.
@@ -2960,6 +2959,57 @@ private void constructOneLBLocationMap(FileStatus fSta,
         }
       }
     }
+  }
+  private static Path rename(Path srcP, FileSystem destFs, Path destf, String name,
+      String filetype, boolean renameNonLocal, boolean isOverwrite, boolean isSrcLocal,
+      FileSystem srcFs, HiveConf conf) {
+    Path destPath = new Path(destf, srcP.getName());
+    try {
+      if (renameNonLocal) {
+        if (isOverwrite && destFs.exists(destPath)) {
+          destFs.delete(destPath, false);
+        }
+        /**
+         * FileSystem.rename() doesn't provide a reason why it failed, just a boolean.  It makes
+         * sense to loop around if it fails because destPath already exists but not if srcP
+         * disappeared.  The later may actually happen due to query being cancelled and
+         * then clean up logic deleting temp artifacts.  Then relying solely on rename() return
+         * value will make this loop spin forever.
+         * Having a separate loop checking
+         * destFs.exists(destPath) until a unique file name is found creates a problem in
+         * case of 2 concurrent writes to the same partition (w/o Hive locking or acid)
+         * since then it makes generating new file name and actual rename() not atomic.
+         *
+         * A better solution is to make sure all ThreadPoolS are properly terminated (shutdownAll)
+         * on cancel but that should be a comprehensive change.
+         */
+        boolean success = false;
+        for (int counter = 1;
+             destFs.exists(srcP) && !(success = destFs.rename(srcP,destPath)); counter++) {
+          destPath = new Path(destf, name + ("_copy_" + counter) + filetype);
+        }
+        if(success) {
+          return destPath;
+        }
+      } else {
+        return mvFile(conf, srcFs, srcP, destFs, destf, isSrcLocal, isOverwrite, renameNonLocal);
+     // HiveConf conf, FileSystem sourceFs, Path sourcePath, FileSystem destFs, Path destDirPath,
+    //  boolean isSrcLocal, boolean isOverwrite, boolean isRenameAllowed
+      }
+    } catch (IOException ioe) {
+      LOG.error("Failed to move: " + srcP + " to " + destPath + " due to: " + ioe.getMessage());
+    }
+    return destPath;
+  }
+  private static boolean destExists(List<List<Path[]>> result, Path proposed) {
+    for (List<Path[]> sdpairs : result) {
+      for (Path[] sdpair : sdpairs) {
+        if (sdpair[1].equals(proposed)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private static boolean isSubDir(Path srcf, Path destf, FileSystem srcFs, FileSystem destFs, boolean isSrcLocal) {
