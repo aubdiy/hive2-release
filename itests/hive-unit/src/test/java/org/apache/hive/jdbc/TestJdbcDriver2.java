@@ -3008,4 +3008,49 @@ public class TestJdbcDriver2 {
     stmt.execute("drop table " + tblName);
     stmt.close();
   }
+
+  @Test
+  public void testUnionUniqueColumnNames() throws Exception {
+    HiveStatement stmt = (HiveStatement) con.createStatement();
+
+    stmt.execute("SET hive.resultset.use.unique.column.names=true");
+    ResultSet rs = stmt.executeQuery("select 1 UNION ALL select 2");
+    ResultSetMetaData metaData = rs.getMetaData();
+    assertEquals("_c0", metaData.getColumnLabel(1));
+    assertTrue("There's no . for the UNION column name", !metaData.getColumnLabel(1).contains("."));
+    stmt.close();
+  }
+
+  @Test
+  public void testGetQueryId() throws Exception {
+    HiveStatement stmt = (HiveStatement) con.createStatement();
+    HiveStatement stmt1 = (HiveStatement) con.createStatement();
+
+    // Returns null if no query is running.
+    String queryId = stmt.getQueryId();
+    assertTrue(queryId == null);
+
+    stmt.executeAsync("create database query_id_test with dbproperties ('repl.source.for' = '1, 2, 3')");
+    queryId = stmt.getQueryId();
+    assertFalse(queryId.isEmpty());
+    stmt.getUpdateCount();
+
+    stmt1.executeAsync("repl status query_id_test with ('hive.query.id' = 'hiveCustomTag')");
+    String queryId1 = stmt1.getQueryId();
+    assertFalse("hiveCustomTag".equals(queryId1));
+    assertFalse(queryId.equals(queryId1));
+    assertFalse(queryId1.isEmpty());
+    stmt1.getUpdateCount();
+
+    stmt.executeAsync("select count(*) from " + dataTypeTableName);
+    queryId = stmt.getQueryId();
+    assertFalse("hiveCustomTag".equals(queryId));
+    assertFalse(queryId.isEmpty());
+    assertFalse(queryId.equals(queryId1));
+    stmt.getUpdateCount();
+
+    stmt.execute("drop database query_id_test");
+    stmt.close();
+    stmt1.close();
+  }
 }
