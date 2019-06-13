@@ -399,7 +399,7 @@ public class HiveMetaStoreChecker {
    *          Start directory
    * @param allDirs
    *          This set will contain the leaf paths at the end.
-   * @param list
+   * @param partColNames
    *          Specify how deep the search goes.
    * @throws IOException
    *           Thrown if we can't get lists from the fs.
@@ -417,7 +417,7 @@ public class HiveMetaStoreChecker {
     ExecutorService executor;
     if (poolSize <= 1) {
       LOG.debug("Using single-threaded version of MSCK-GetPaths");
-      executor = MoreExecutors.sameThreadExecutor();
+      executor = MoreExecutors.newDirectExecutorService();
     } else {
       LOG.debug("Using multi-threaded version of MSCK-GetPaths with number of threads " + poolSize);
       ThreadFactory threadFactory =
