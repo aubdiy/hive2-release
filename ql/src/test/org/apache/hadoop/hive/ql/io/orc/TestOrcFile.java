@@ -88,7 +88,7 @@ import org.apache.orc.ColumnStatistics;
 import org.apache.orc.DecimalColumnStatistics;
 import org.apache.orc.DoubleColumnStatistics;
 import org.apache.orc.IntegerColumnStatistics;
-import org.apache.orc.impl.MemoryManager;
+import org.apache.orc.MemoryManager;
 import org.apache.orc.OrcProto;
 
 import org.apache.orc.OrcUtils;
@@ -1930,8 +1930,7 @@ public class TestOrcFile {
         new MiddleStruct(inner, inner2), list(), map(inner,inner2));
   }
 
-  private static class MyMemoryManager extends MemoryManager {
-    final long totalSpace;
+  private static class MyMemoryManager implements MemoryManager {
     double rate;
     Path path = null;
     long lastAllocation = 0;
@@ -1939,8 +1938,6 @@ public class TestOrcFile {
     MemoryManager.Callback callback;
 
     MyMemoryManager(Configuration conf, long totalSpace, double rate) {
-      super(conf);
-      this.totalSpace = totalSpace;
       this.rate = rate;
     }
 
@@ -1956,16 +1953,6 @@ public class TestOrcFile {
     public synchronized void removeWriter(Path path) {
       this.path = null;
       this.lastAllocation = 0;
-    }
-
-    @Override
-    public long getTotalMemoryPool() {
-      return totalSpace;
-    }
-
-    @Override
-    public double getAllocationScale() {
-      return rate;
     }
 
     @Override

@@ -89,7 +89,7 @@ import org.apache.orc.OrcFile.Version;
 import org.apache.orc.OrcProto;
 import org.apache.orc.OrcProto.ColumnEncoding;
 import org.apache.orc.TypeDescription;
-import org.apache.orc.impl.MemoryManager;
+import org.apache.orc.MemoryManager;
 import org.apache.orc.impl.OutStream;
 import org.apache.orc.impl.OutStream.OutputReceiver;
 import org.apache.orc.impl.PhysicalWriter;

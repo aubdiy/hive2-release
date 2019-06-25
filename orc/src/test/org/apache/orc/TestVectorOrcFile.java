@@ -43,7 +43,6 @@ import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.orc.impl.DataReaderProperties;
-import org.apache.orc.impl.MemoryManager;
 import org.apache.orc.impl.OrcIndex;
 import org.apache.orc.impl.RecordReaderImpl;
 import org.apache.orc.impl.RecordReaderUtils;
@@ -1885,8 +1884,7 @@ public class TestVectorOrcFile {
         new MiddleStruct(inner, inner2), list(), map(inner, inner2));
   }
 
-  private static class MyMemoryManager extends MemoryManager {
-    final long totalSpace;
+  private static class MyMemoryManager implements MemoryManager {
     double rate;
     Path path = null;
     long lastAllocation = 0;
@@ -1894,8 +1892,6 @@ public class TestVectorOrcFile {
     Callback callback;
 
     MyMemoryManager(Configuration conf, long totalSpace, double rate) {
-      super(conf);
-      this.totalSpace = totalSpace;
       this.rate = rate;
     }
 
@@ -1911,16 +1907,6 @@ public class TestVectorOrcFile {
     public synchronized void removeWriter(Path path) {
       this.path = null;
       this.lastAllocation = 0;
-    }
-
-    @Override
-    public long getTotalMemoryPool() {
-      return totalSpace;
-    }
-
-    @Override
-    public double getAllocationScale() {
-      return rate;
     }
 
     @Override
