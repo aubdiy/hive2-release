@@ -19,7 +19,9 @@ package org.apache.orc.impl;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
+import static org.hamcrest.core.StringStartsWith.startsWith;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -136,21 +138,21 @@ public class TestSerializationUtils {
       LongMath.checkedSubtract(22222222222L, Long.MIN_VALUE);
       fail("expected ArithmeticException for overflow");
     } catch (ArithmeticException ex) {
-      assertEquals(ex.getMessage(), "overflow");
+      assertThat(ex.getMessage(), startsWith("overflow"));
     }
 
     try {
       LongMath.checkedSubtract(-22222222222L, Long.MAX_VALUE);
       fail("expected ArithmeticException for overflow");
     } catch (ArithmeticException ex) {
-      assertEquals(ex.getMessage(), "overflow");
+      assertThat(ex.getMessage(), startsWith("overflow"));
     }
 
     try {
       LongMath.checkedSubtract(Long.MIN_VALUE, Long.MAX_VALUE);
       fail("expected ArithmeticException for overflow");
     } catch (ArithmeticException ex) {
-      assertEquals(ex.getMessage(), "overflow");
+      assertThat(ex.getMessage(), startsWith("overflow"));
     }
 
     assertEquals(-8106206116692740190L,
