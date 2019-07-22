@@ -682,6 +682,7 @@ public class TypeCheckProcFactory {
       Object constant = ((ConstantObjectInspector) inspector).getWritableConstantValue();
       ExprNodeConstantDesc constantExpr = new ExprNodeConstantDesc(colInfo.getType(), poi.getPrimitiveJavaObject(constant));
       constantExpr.setFoldedFromCol(colInfo.getInternalName());
+      constantExpr.setFoldedFromTab(colInfo.getTabAlias());
       return constantExpr;
     }
     // non-constant or non-primitive constants

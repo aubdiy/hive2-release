@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator;
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory;
@@ -45,6 +47,8 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.util.ReflectionUtils;
 
 public class ExprNodeDescUtils {
+
+  protected static final Logger LOG = LoggerFactory.getLogger(ExprNodeDescUtils.class);
 
   public static int indexOf(ExprNodeDesc origin, List<ExprNodeDesc> sources) {
     for (int i = 0; i < sources.size(); i++) {
@@ -359,8 +363,13 @@ public class ExprNodeDescUtils {
           // Join key expression is likely some expression involving functions/operators, so there
           // is no actual table column for this. But the ReduceSink operator should still have an
           // output column corresponding to this expression, using the columnInternalName.
-          // TODO: does tableAlias matter for this kind of expression?
-          return new ExprNodeColumnDesc(source.getTypeInfo(), columnInternalName, "", false);
+          String tabAlias = "";
+          // HIVE-21746: Set tabAlias when possible, such as for constant folded column
+          // that has foldedFromTab info.
+          if (source instanceof ExprNodeConstantDesc) {
+            tabAlias = ((ExprNodeConstantDesc) source).getFoldedFromTab();
+          }
+          return new ExprNodeColumnDesc(source.getTypeInfo(), columnInternalName, tabAlias, false);
         }
       }
     }
