@@ -4322,6 +4322,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         tbl.setTableType(TableType.EXTERNAL_TABLE);
       }
 
+      setUserSpecifiedLocation(tbl, crtTbl);
+
       tbl.setFields(oldtbl.getCols());
       tbl.setPartCols(oldtbl.getPartCols());
 
@@ -4363,11 +4365,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       // using old table object, hence reset the owner to current user for new table.
       tbl.setOwner(SessionState.getUserFromAuthenticator());
 
-      if (crtTbl.getLocation() != null) {
-        tbl.setDataLocation(new Path(crtTbl.getLocation()));
-      } else {
-        tbl.unsetDataLocation();
-      }
+      setUserSpecifiedLocation(tbl, crtTbl);
 
       Class<? extends Deserializer> serdeClass = oldtbl.getDeserializerClass();
 
@@ -4733,5 +4731,13 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
               && !sh.equals("org.apache.hadoop.hive.accumulo.AccumuloStorageHandler");
     }
     return retval;
+  }
+
+  private void setUserSpecifiedLocation(Table table, CreateTableLikeDesc desc) {
+    if (desc.getLocation() != null) {
+      table.setDataLocation(new Path(desc.getLocation()));
+    } else {
+      table.unsetDataLocation();
+    }
   }
 }

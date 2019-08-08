@@ -1399,7 +1399,7 @@ public class TestJdbcWithMiniHS2 {
 
   @Test
   public void testCustomPathsForCTLV() throws Exception {
-    try (Statement stmt = conTestDb.createStatement()) {
+    try (Statement stmt = hs2Conn.createStatement()) {
       // Initialize
       stmt.execute("CREATE TABLE emp_table (id int, name string, salary int)");
       stmt.execute("insert into emp_table values(1,'aaaaa',20000)");
@@ -1416,5 +1416,22 @@ public class TestJdbcWithMiniHS2 {
       stmt.execute("CREATE TABLE emp_mm_table like emp_view STORED AS ORC LOCATION '" + mndPath + "'");
       assertTrue(getDetailedTableDescription(stmt, "emp_mm_table").contains(mndPath));
     }
+  }
+
+  /**
+   * Get Detailed Table Information via jdbc
+   */
+  static String getDetailedTableDescription(Statement stmt, String table) throws SQLException {
+    String extendedDescription = null;
+    try (ResultSet rs = stmt.executeQuery("describe extended " + table)) {
+      while (rs.next()) {
+        String out = rs.getString(1);
+        String tableInfo = rs.getString(2);
+        if ("Detailed Table Information".equals(out)) { // from TextMetaDataFormatter
+          extendedDescription = tableInfo;
+        }
+      }
+    }
+    return extendedDescription;
   }
 }
