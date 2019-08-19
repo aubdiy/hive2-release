@@ -66,7 +66,6 @@ public class VectorLimitOperator extends LimitOperator  {
       batch.size = Math.min(batch.size, offset + limit - currCount);
       if (batch.selectedInUse == false) {
         batch.selectedInUse = true;
-        batch.selected = new int[batch.size];
         for (int i = 0; i < batch.size - skipSize; i++) {
           batch.selected[i] = skipSize + i;
         }
