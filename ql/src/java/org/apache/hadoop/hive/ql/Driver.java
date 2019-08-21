@@ -1565,10 +1565,8 @@ public class Driver implements CommandProcessor {
     boolean noName = StringUtils.isEmpty(conf.get(MRJobConfig.JOB_NAME));
     int maxlen = conf.getIntVar(HiveConf.ConfVars.HIVEJOBNAMELENGTH);
 
-    String queryId = plan.getQueryId();
-    // Get the query string from the conf file as the compileInternal() method might
-    // hide sensitive information during query redaction.
-    String queryStr = conf.getQueryString();
+    String queryId = "";
+    String queryStr = "";
 
     maxthreads = HiveConf.getIntVar(conf, HiveConf.ConfVars.EXECPARALLETHREADNUMBER);
 
@@ -1576,6 +1574,8 @@ public class Driver implements CommandProcessor {
 
     String originalCallerContext = "";
     try {
+      queryId = plan.getQueryId();
+      queryStr = plan.getQueryStr();
       LOG.info("Setting caller context to query id " + queryId);
       originalCallerContext = ShimLoader.getHadoopShims().getHadoopCallerContext();
       ShimLoader.getHadoopShims().setHadoopQueryContext(queryId);
