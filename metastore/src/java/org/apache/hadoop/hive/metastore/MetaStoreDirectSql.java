@@ -184,7 +184,7 @@ class MetaStoreDirectSql {
     this(pm, conf, "");
   }
 
-  private String getProductName() {
+  static String getProductName(PersistenceManager pm) {
     JDOConnection jdoConn = pm.getDataStoreConnection();
     try {
       return ((Connection)jdoConn.getNativeConnection()).getMetaData().getDatabaseProductName();
@@ -1346,66 +1346,6 @@ class MetaStoreDirectSql {
         });
       }
     });
-  }
-
-  // Get aggregated column stats for a table per partition for all columns in the partition
-  // This is primarily used to populate stats object when using CachedStore (Check CachedStore#prewarm)
-  public Map<String, List<ColumnStatisticsObj>> getColStatsForTablePartitions(String dbName,
-      String tblName) throws MetaException {
-    String queryText =
-        "select \"PARTITION_NAME\", \"COLUMN_NAME\", \"COLUMN_TYPE\", \"LONG_LOW_VALUE\", "
-            + "\"LONG_HIGH_VALUE\", \"DOUBLE_LOW_VALUE\", \"DOUBLE_HIGH_VALUE\",  "
-            + "\"BIG_DECIMAL_LOW_VALUE\", \"BIG_DECIMAL_HIGH_VALUE\", \"NUM_NULLS\", "
-            + "\"NUM_DISTINCTS\", \"AVG_COL_LEN\", \"MAX_COL_LEN\", \"NUM_TRUES\", \"NUM_FALSES\""
-            + " from " + PART_COL_STATS + " where \"DB_NAME\" = ? and \"TABLE_NAME\" = ?"
-            + " order by \"PARTITION_NAME\"";
-    long start = 0;
-    long end = 0;
-    Query query = null;
-    boolean doTrace = LOG.isDebugEnabled();
-    Object qResult = null;
-    start = doTrace ? System.nanoTime() : 0;
-    query = pm.newQuery("javax.jdo.query.SQL", queryText);
-    qResult =
-        executeWithArray(query,
-            prepareParams(dbName, tblName, new ArrayList<String>(), new ArrayList<String>()),
-            queryText);
-    if (qResult == null) {
-      query.closeAll();
-      return Maps.newHashMap();
-    }
-    end = doTrace ? System.nanoTime() : 0;
-    timingTrace(doTrace, queryText, start, end);
-    List<Object[]> list = ensureList(qResult);
-    Map<String, List<ColumnStatisticsObj>> partColStatsMap =
-        new HashMap<String, List<ColumnStatisticsObj>>();
-    String partNameCurrent = null;
-    List<ColumnStatisticsObj> partColStatsList = new ArrayList<ColumnStatisticsObj>();
-    for (Object[] row : list) {
-      String partName = (String) row[0];
-      if (partNameCurrent == null) {
-        // Update the current partition we are working on
-        partNameCurrent = partName;
-        // Create a new list for this new partition
-        partColStatsList = new ArrayList<ColumnStatisticsObj>();
-        // Add the col stat for the current column
-        partColStatsList.add(prepareCSObj(row, 1));
-      } else if (!partNameCurrent.equalsIgnoreCase(partName)) {
-        // Save the previous partition and its col stat list
-        partColStatsMap.put(partNameCurrent, partColStatsList);
-        // Update the current partition we are working on
-        partNameCurrent = partName;
-        // Create a new list for this new partition
-        partColStatsList = new ArrayList<ColumnStatisticsObj>();
-        // Add the col stat for the current column
-        partColStatsList.add(prepareCSObj(row, 1));
-      } else {
-        partColStatsList.add(prepareCSObj(row, 1));
-      }
-      Deadline.checkTimeout();
-    }
-    query.closeAll();
-    return partColStatsMap;
   }
 
   /** Should be called with the list short enough to not trip up Oracle/etc. */
