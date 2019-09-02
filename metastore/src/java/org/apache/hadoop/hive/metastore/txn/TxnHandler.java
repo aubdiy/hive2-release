@@ -146,7 +146,6 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
   static final private Logger LOG = LoggerFactory.getLogger(TxnHandler.class.getName());
 
   static private DataSource connPool;
-  private static DataSource connPoolMutex;
   static private boolean doRetryOnConnPool = false;
   
   private enum OpertaionType {
@@ -203,8 +202,8 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
   private int deadlockCnt;
   private long deadlockRetryInterval;
   protected HiveConf conf;
-  private static DatabaseProduct dbProduct;
-  private static SQLGenerator sqlGenerator;
+  protected DatabaseProduct dbProduct;
+  private SQLGenerator sqlGenerator;
 
   // (End user) Transaction timeout, in milliseconds.
   private long timeout;
@@ -223,6 +222,7 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
    */
   private final static ConcurrentHashMap<String, Semaphore> derbyKey2Lock = new ConcurrentHashMap<>();
   private static final String hostname = ServerUtils.hostname();
+  private static volatile boolean dumpConfig = true;
 
   // Private methods should never catch SQLException and then throw MetaException.  The public
   // methods depend on SQLException coming back so they can detect and handle deadlocks.  Private
@@ -266,7 +266,7 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
             exceed (size of connPool + MUTEX_KEY.values().length - 1).*/
           connPoolMutex = setupJdbcConnectionPool(conf, maxPoolSize + MUTEX_KEY.values().length, getConnectionTimeoutMs);
           dbConn = getDbConn(Connection.TRANSACTION_READ_COMMITTED);
-          determineDatabaseProduct(dbConn);
+          dbProduct = DatabaseProduct.determineDatabaseProduct(dbConn.getMetaData().getDatabaseProductName());
           sqlGenerator = new SQLGenerator(dbProduct, conf);
         } catch (SQLException e) {
           String msg = "Unable to instantiate JDBC connection pooling, " + e.getMessage();
@@ -285,6 +285,11 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
     retryLimit = HiveConf.getIntVar(conf, HiveConf.ConfVars.HMSHANDLERATTEMPTS);
     deadlockRetryInterval = retryInterval / 10;
     maxOpenTxns = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVE_MAX_OPEN_TXNS);
+    if(dumpConfig) {
+      LOG.info(HiveConfUtil.dumpConfig(conf).toString());
+      //only do this once per JVM; useful for support
+      dumpConfig = false;
+    }
   }
   @Override
   @RetrySemantics.ReadOnly
@@ -1922,10 +1927,7 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
 
   }
 
-  Connection getDbConn(int isolationLevel) throws SQLException {
-    return getDbConn(isolationLevel, connPool);
-  }
-  private Connection getDbConn(int isolationLevel, DataSource connPool) throws SQLException {
+  protected Connection getDbConn(int isolationLevel) throws SQLException {
     int rc = doRetryOnConnPool ? 10 : 1;
     Connection dbConn = null;
     while (true) {
@@ -3120,7 +3122,9 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
     }
   }
 
-  private static synchronized DataSource setupJdbcConnectionPool(HiveConf conf, int maxPoolSize, long getConnectionTimeoutMs) throws SQLException {
+  private static synchronized void setupJdbcConnectionPool(HiveConf conf) throws SQLException {
+    if (connPool != null) return;
+
     String driverUrl = HiveConf.getVar(conf, HiveConf.ConfVars.METASTORECONNECTURLKEY);
     String driverClassName = HiveConf.getVar(conf, HiveConf.ConfVars.METASTORE_CONNECTION_DRIVER);
     String user = HiveConf.getVar(conf, HiveConf.ConfVars.METASTORE_CONNECTION_USER_NAME);
@@ -3137,38 +3141,31 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
     if ("bonecp".equals(connectionPooler)) {
       BoneCPConfig config = new BoneCPConfig();
       config.setJdbcUrl(driverUrl);
-      //if we are waiting for connection for a long time, something is really wrong
+      //if we are waiting for connection for 60s, something is really wrong
       //better raise an error than hang forever
-      //see DefaultConnectionStrategy.getConnectionInternal()
-      config.setConnectionTimeoutInMs(getConnectionTimeoutMs);
-      config.setMaxConnectionsPerPartition(maxPoolSize);
+      config.setConnectionTimeoutInMs(60000);
+      config.setMaxConnectionsPerPartition(10);
       config.setPartitionCount(1);
       config.setUser(user);
       config.setPassword(passwd);
+      connPool = new BoneCPDataSource(config);
       doRetryOnConnPool = true;  // Enable retries to work around BONECP bug.
-      return new BoneCPDataSource(config);
     } else if ("dbcp".equals(connectionPooler)) {
-      GenericObjectPool objectPool = new GenericObjectPool();
-      //https://commons.apache.org/proper/commons-pool/api-1.6/org/apache/commons/pool/impl/GenericObjectPool.html#setMaxActive(int)
-      objectPool.setMaxActive(maxPoolSize);
-      objectPool.setMaxWait(getConnectionTimeoutMs);
+      ObjectPool objectPool = new GenericObjectPool();
       ConnectionFactory connFactory = new DriverManagerConnectionFactory(driverUrl, user, passwd);
       // This doesn't get used, but it's still necessary, see
       // http://svn.apache.org/viewvc/commons/proper/dbcp/branches/DBCP_1_4_x_BRANCH/doc/ManualPoolingDataSourceExample.java?view=markup
       PoolableConnectionFactory poolConnFactory =
         new PoolableConnectionFactory(connFactory, objectPool, null, null, false, true);
-      return new PoolingDataSource(objectPool);
+      connPool = new PoolingDataSource(objectPool);
     } else if ("hikaricp".equals(connectionPooler)) {
       HikariConfig config = new HikariConfig();
-      config.setMaximumPoolSize(maxPoolSize);
       config.setJdbcUrl(driverUrl);
       config.setDriverClassName(driverClassName); // needed for older versions of HikariCP
       config.setUsername(user);
       config.setPassword(passwd);
-      //https://github.com/brettwooldridge/HikariCP
-      config.setConnectionTimeout(getConnectionTimeoutMs);
 
-      return new HikariDataSource(config);
+      connPool = new HikariDataSource(config);
     } else {
       throw new RuntimeException("Unknown JDBC connection pooling " + connectionPooler);
     }
@@ -3426,7 +3423,7 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
       try {
         String sqlStmt = sqlGenerator.addForUpdateClause("select MT_COMMENT from AUX_TABLE where MT_KEY1=" + quoteString(key) + " and MT_KEY2=0");
         lockInternal();
-        dbConn = getDbConn(Connection.TRANSACTION_READ_COMMITTED, connPoolMutex);
+        dbConn = getDbConn(Connection.TRANSACTION_READ_COMMITTED);
         stmt = dbConn.createStatement();
         if(LOG.isDebugEnabled()) {
           LOG.debug("About to execute SQL: " + sqlStmt);
