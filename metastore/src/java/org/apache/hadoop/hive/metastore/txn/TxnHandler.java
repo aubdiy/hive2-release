@@ -32,8 +32,6 @@ import org.apache.hadoop.hive.common.classification.InterfaceStability;
 import org.apache.hadoop.hive.common.classification.RetrySemantics;
 import org.apache.hadoop.hive.metastore.HouseKeeperService;
 import org.apache.hadoop.hive.metastore.Warehouse;
-import org.apache.hadoop.hive.metastore.DatabaseProduct;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.dbcp.PoolingDataSource;
@@ -246,36 +244,20 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
 
     checkQFileTestHack();
 
-    synchronized (TxnHandler.class) {
-      if (connPool == null) {
-        //only do this once per JVM; useful for support
-        LOG.info(HiveConfUtil.dumpConfig(conf).toString());
-
-        Connection dbConn = null;
-        // Set up the JDBC connection pool
-        try {
-          int maxPoolSize = conf.getIntVar(HiveConf.ConfVars.METASTORE_CONNECTION_POOLING_MAX_CONNECTIONS);
-          long getConnectionTimeoutMs = 30000;
-          connPool = setupJdbcConnectionPool(conf, maxPoolSize, getConnectionTimeoutMs);
-          /*the mutex pools should ideally be somewhat larger since some operations require 1
-            connection from each pool and we want to avoid taking a connection from primary pool
-            and then blocking because mutex pool is empty.  There is only 1 thread in any HMS trying
-            to mutex on each MUTEX_KEY except MUTEX_KEY.CheckLock.  The CheckLock operation gets a
-            connection from connPool first, then connPoolMutex.  All others, go in the opposite
-            order (not very elegant...).  So number of connection requests for connPoolMutex cannot
-            exceed (size of connPool + MUTEX_KEY.values().length - 1).*/
-          connPoolMutex = setupJdbcConnectionPool(conf, maxPoolSize + MUTEX_KEY.values().length, getConnectionTimeoutMs);
-          dbConn = getDbConn(Connection.TRANSACTION_READ_COMMITTED);
-          dbProduct = DatabaseProduct.determineDatabaseProduct(dbConn.getMetaData().getDatabaseProductName());
-          sqlGenerator = new SQLGenerator(dbProduct, conf);
-        } catch (SQLException e) {
-          String msg = "Unable to instantiate JDBC connection pooling, " + e.getMessage();
-          LOG.error(msg);
-          throw new RuntimeException(e);
-        } finally {
-          closeDbConn(dbConn);
-        }
-      }
+    Connection dbConn = null;
+    // Set up the JDBC connection pool
+    try {
+      setupJdbcConnectionPool(conf);
+      dbConn = getDbConn(Connection.TRANSACTION_READ_COMMITTED);
+      determineDatabaseProduct(dbConn);
+      sqlGenerator = new SQLGenerator(dbProduct, conf);
+    } catch (SQLException e) {
+      String msg = "Unable to instantiate JDBC connection pooling, " + e.getMessage();
+      LOG.error(msg);
+      throw new RuntimeException(e);
+    }
+    finally {
+      closeDbConn(dbConn);
     }
 
     timeout = HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS);
@@ -2023,7 +2005,12 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
       if(dbProduct == null) {
         throw new IllegalStateException("DB Type not determined yet.");
       }
-      if (DatabaseProduct.isDeadlock(dbProduct, e)) {
+      if (e instanceof SQLTransactionRollbackException ||
+        ((dbProduct == DatabaseProduct.MYSQL || dbProduct == DatabaseProduct.POSTGRES ||
+          dbProduct == DatabaseProduct.SQLSERVER) && e.getSQLState().equals("40001")) ||
+        (dbProduct == DatabaseProduct.POSTGRES && e.getSQLState().equals("40P01")) ||
+        (dbProduct == DatabaseProduct.ORACLE && (e.getMessage().contains("deadlock detected")
+          || e.getMessage().contains("can't serialize access for this transaction")))) {
         if (deadlockCnt++ < ALLOWED_REPEATED_DEADLOCKS) {
           long waitInterval = deadlockRetryInterval * deadlockCnt;
           LOG.warn("Deadlock detected in " + caller + ". Will wait " + waitInterval +
@@ -2128,21 +2115,44 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
     return identifierQuoteString;
   }
 
-  private void determineDatabaseProduct(Connection conn) {
-    if (dbProduct != null) return;
-    try {
-      String s = conn.getMetaData().getDatabaseProductName();
-      dbProduct = DatabaseProduct.determineDatabaseProduct(s);
-      if (dbProduct == DatabaseProduct.OTHER) {
-        String msg = "Unrecognized database product name <" + s + ">";
+  protected enum DatabaseProduct { DERBY, MYSQL, POSTGRES, ORACLE, SQLSERVER}
+
+  /**
+   * Determine the database product type
+   * @param conn database connection
+   * @return database product type
+   */
+  private DatabaseProduct determineDatabaseProduct(Connection conn) {
+    if (dbProduct == null) {
+      try {
+        String s = conn.getMetaData().getDatabaseProductName();
+        if (s == null) {
+          String msg = "getDatabaseProductName returns null, can't determine database product";
+          LOG.error(msg);
+          throw new IllegalStateException(msg);
+        } else if (s.equals("Apache Derby")) {
+          dbProduct = DatabaseProduct.DERBY;
+        } else if (s.equals("Microsoft SQL Server")) {
+          dbProduct = DatabaseProduct.SQLSERVER;
+        } else if (s.equals("MySQL")) {
+          dbProduct = DatabaseProduct.MYSQL;
+        } else if (s.equals("Oracle")) {
+          dbProduct = DatabaseProduct.ORACLE;
+        } else if (s.equals("PostgreSQL")) {
+          dbProduct = DatabaseProduct.POSTGRES;
+        } else {
+          String msg = "Unrecognized database product name <" + s + ">";
+          LOG.error(msg);
+          throw new IllegalStateException(msg);
+        }
+
+      } catch (SQLException e) {
+        String msg = "Unable to get database product name: " + e.getMessage();
         LOG.error(msg);
         throw new IllegalStateException(msg);
       }
-    } catch (SQLException e) {
-      String msg = "Unable to get database product name";
-      LOG.error(msg, e);
-      throw new IllegalStateException(msg, e);
     }
+    return dbProduct;
   }
 
   private static class LockInfo {
