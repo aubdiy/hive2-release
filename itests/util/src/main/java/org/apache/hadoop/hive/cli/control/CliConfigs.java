@@ -47,7 +47,6 @@ public class CliConfigs {
         setQueryDir("ql/src/test/queries/clientpositive");
 
         excludesFrom(testConfigProps, "minillap.query.files");
-        excludesFrom(testConfigProps, "minillaplocal.query.files");
         excludesFrom(testConfigProps, "minimr.query.files");
         excludesFrom(testConfigProps, "minitez.query.files");
         excludesFrom(testConfigProps, "encrypted.query.files");
