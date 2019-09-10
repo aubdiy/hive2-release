@@ -397,6 +397,64 @@
           </execution>
         </executions>
       </plugin>
+            <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${maven.shade.plugin.version}</version>
+        <executions>
+          <!-- we need to shade netty, as there is a conflict between versions
+          used by Hadoop (3.6.2.Final) and Druid (3.10.4.Final) -->
+          <!-- we need to shade jackson, as there is a conflict between versions
+          used by Hive (2.4.2) and Druid (2.4.6) -->
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <shadeTestJar>true</shadeTestJar>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <relocations>
+                <relocation>
+                  <pattern>io.netty</pattern>
+                  <shadedPattern>org.apache.hive.io.netty</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.jboss.netty</pattern>
+                  <shadedPattern>org.apache.hive.org.jboss.netty</shadedPattern>
+                </relocation>
+              </relocations>
+              <artifactSet>
+                <includes>
+                  <include>io.druid:*</include>
+                  <include>io.druid.extensions:*</include>
+                  <include>com.metamx:*</include>
+                  <include>io.netty:*</include>
+                  <include>com.fasterxml.jackson.core:*</include>
+                  <include>com.fasterxml.jackson.datatype:*</include>
+                  <include>com.fasterxml.jackson.dataformat:*</include>
+                  <include>com.google.guava:*</include>
+                  <include>it.unimi.dsi:*</include>
+                  <include>org.jdbi:*</include>
+                  <include>net.jpountz.lz4:*</include>
+                  <include>org.apache.commons:*</include>
+                  <include>org.roaringbitmap:*</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 
