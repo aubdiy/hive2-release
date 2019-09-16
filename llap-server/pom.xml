@@ -426,31 +426,10 @@
               </relocations>
               <artifactSet>
                 <includes>
-                  <include>io.druid:*</include>
-                  <include>io.druid.extensions:*</include>
-                  <include>com.metamx:*</include>
                   <include>io.netty:*</include>
-                  <include>com.fasterxml.jackson.core:*</include>
-                  <include>com.fasterxml.jackson.datatype:*</include>
-                  <include>com.fasterxml.jackson.dataformat:*</include>
-                  <include>com.google.guava:*</include>
-                  <include>it.unimi.dsi:*</include>
-                  <include>org.jdbi:*</include>
-                  <include>net.jpountz.lz4:*</include>
-                  <include>org.apache.commons:*</include>
-                  <include>org.roaringbitmap:*</include>
+                  <include>org.jboss.netty:*</include>
                 </includes>
               </artifactSet>
-              <filters>
-                <filter>
-                  <artifact>*:*</artifact>
-                  <excludes>
-                    <exclude>META-INF/*.SF</exclude>
-                    <exclude>META-INF/*.DSA</exclude>
-                    <exclude>META-INF/*.RSA</exclude>
-                  </excludes>
-                </filter>
-              </filters>
             </configuration>
           </execution>
         </executions>
