@@ -1072,6 +1072,8 @@ PREHOOK: Input: default@bucket_big@ds=2008-04-09
 PREHOOK: Input: default@bucket_small
 PREHOOK: Input: default@bucket_small@ds=2008-04-08
 #### A masked pattern was here ####
+FAILED: Execution Error, return code 3 from org.apache.hadoop.hive.ql.exec.mr.MapredLocalTask
+ATTEMPT: Execute BackupTask: org.apache.hadoop.hive.ql.exec.mr.MapRedTask
 POSTHOOK: query: select count(*) FROM bucket_big a JOIN bucket_small b ON a.key = b.key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@bucket_big
