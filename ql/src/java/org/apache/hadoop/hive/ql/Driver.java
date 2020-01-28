@@ -1048,7 +1048,7 @@ public class Driver implements CommandProcessor {
       }
 
       return 0;
-    } catch (LockException e) {
+    } catch (Exception e) {
       errorMessage = "FAILED: Error in acquiring locks: " + e.getMessage();
       SQLState = ErrorMsg.findSQLState(e.getMessage());
       downstreamError = e;
