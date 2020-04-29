@@ -43,6 +43,7 @@ import java.util.Stack;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.nio.file.Paths;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.StringUtils;
@@ -100,6 +101,7 @@ import org.apache.hadoop.hive.ql.plan.TezEdgeProperty;
 import org.apache.hadoop.hive.ql.plan.TezEdgeProperty.EdgeType;
 import org.apache.hadoop.hive.ql.plan.TezWork;
 import org.apache.hadoop.hive.ql.plan.TezWork.VertexType;
+import org.apache.hadoop.hive.ql.plan.UnionWork;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.stats.StatsCollectionContext;
 import org.apache.hadoop.hive.ql.stats.StatsFactory;
@@ -232,58 +234,74 @@ public class DagUtils {
     }
   }
 
-  private void addCredentials(MapWork mapWork, DAG dag) {
-    Set<String> paths = mapWork.getPathToAliases().keySet();
-    if (!paths.isEmpty()) {
-      Iterator<URI> pathIterator = Iterators.transform(paths.iterator(), new Function<String, URI>() {
-        @Override
-        public URI apply(String input) {
-          return new Path(input).toUri();
-        }
-      });
 
-      Set<URI> uris = new HashSet<URI>();
-      Iterators.addAll(uris, pathIterator);
+  /**
+   * Set up credentials for the base work on secure clusters
+   */
+  public void addCredentials(BaseWork work, DAG dag) {
+    if (work instanceof MapWork){
+      Set<String> paths = ((MapWork)work).getPathToAliases().keySet();
+      if (!paths.isEmpty()) {
+        Iterator<URI> pathIterator = Iterators.transform(paths.iterator(), new Function<String, URI>() {
+          @Override
+          public URI apply(String path) {
+            return Paths.get(path).toUri();
+          }
+        });
 
-      if (LOG.isDebugEnabled()) {
-        for (URI uri: uris) {
-          LOG.debug("Marking MapWork input URI as needing credentials: " + uri);
+        Set<URI> uris = new HashSet<URI>();
+        Iterators.addAll(uris, pathIterator);
+
+        if (LOG.isDebugEnabled()) {
+          for (URI uri: uris) {
+            LOG.debug("Marking MapWork input URI as needing credentials: " + uri);
+          }
         }
+        dag.addURIsForCredentials(uris);
       }
-      dag.addURIsForCredentials(uris);
     }
 
+    getCredentialsForFileSinks(work, dag);
+  }
+
+  private void getCredentialsForFileSinks(BaseWork baseWork, DAG dag) {
     Set<URI> fileSinkUris = new HashSet<URI>();
 
-    List<Node> topNodes = new ArrayList<Node>();
-    LinkedHashMap<String, Operator<? extends OperatorDesc>> aliasToWork = mapWork.getAliasToWork();
-    for (Operator<? extends OperatorDesc> operator : aliasToWork.values()) {
-      topNodes.add(operator);
-    }
+    List<Node> topNodes = getTopNodes(baseWork);
+
+    LOG.debug("Collecting file sink uris for " + baseWork.getClass() + " topnodes: " + topNodes);
     collectFileSinkUris(topNodes, fileSinkUris);
 
     if (LOG.isDebugEnabled()) {
-      for (URI fileSinkUri: fileSinkUris) {
-        LOG.debug("Marking MapWork output URI as needing credentials: " + fileSinkUri);
+      for (URI fileSinkUri : fileSinkUris) {
+        LOG.debug("Marking " + baseWork.getClass() + " output URI as needing credentials (filesink): " + fileSinkUri);
       }
     }
     dag.addURIsForCredentials(fileSinkUris);
   }
 
-  private void addCredentials(ReduceWork reduceWork, DAG dag) {
-
-    Set<URI> fileSinkUris = new HashSet<URI>();
-
+  private List<Node> getTopNodes(BaseWork work) {
     List<Node> topNodes = new ArrayList<Node>();
-    topNodes.add(reduceWork.getReducer());
-    collectFileSinkUris(topNodes, fileSinkUris);
 
-    if (LOG.isDebugEnabled()) {
-      for (URI fileSinkUri: fileSinkUris) {
-        LOG.debug("Marking ReduceWork output URI as needing credentials: " + fileSinkUri);
+    if (work instanceof MapWork) {
+      Map<String, Operator<? extends OperatorDesc>> aliasToWork = ((MapWork) work).getAliasToWork();
+      for (Operator<? extends OperatorDesc> operator : aliasToWork.values()) {
+        topNodes.add(operator);
+      }
+    } else if (work instanceof ReduceWork) {
+      topNodes.add(((ReduceWork) work).getReducer());
+    } else if (work instanceof MergeJoinWork) {
+      for (Operator<? extends OperatorDesc> operator : ((MergeJoinWork) work)
+          .getAllRootOperators()) {
+        topNodes.add(operator);
+      }
+    } else if (work instanceof UnionWork) {
+      for (Operator<? extends OperatorDesc> operator : ((UnionWork) work).getAllRootOperators()) {
+        topNodes.add(operator);
       }
     }
-    dag.addURIsForCredentials(fileSinkUris);
+
+    return topNodes;
   }
 
   /*
@@ -1366,18 +1384,6 @@ public class DagUtils {
     }
 
     return v;
-  }
-
-  /**
-   * Set up credentials for the base work on secure clusters
-   */
-  public void addCredentials(BaseWork work, DAG dag) throws IOException {
-    dag.getCredentials().mergeAll(UserGroupInformation.getCurrentUser().getCredentials());
-    if (work instanceof MapWork) {
-      addCredentials((MapWork) work, dag);
-    } else if (work instanceof ReduceWork) {
-      addCredentials((ReduceWork) work, dag);
-    }
   }
 
   /**
