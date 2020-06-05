@@ -2094,7 +2094,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
       ReadEntity parentViewInfo = PlanUtils.getParentViewInfo(getAliasId(alias, qb), viewAliasToInput);
       PlanUtils.addInput(inputs,
-              new ReadEntity(tab, parentViewInfo, parentViewInfo == null),mergeIsDirect);
+              new ReadEntity(tab, parentViewInfo, parentViewInfo == null), mergeIsDirect);
     }
 
     LOG.info("Get metadata for subqueries");
