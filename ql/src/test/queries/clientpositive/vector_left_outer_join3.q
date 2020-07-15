@@ -17,12 +17,7 @@ INSERT INTO TABLE TJOIN3 SELECT * from TJOIN3STAGE;
 INSERT INTO TABLE TJOIN4 SELECT * from TJOIN4STAGE;
 
 set hive.vectorized.execution.enabled=false;
-explain vectorization detail
-select TJOIN3.id,TJOIN3.name from TJOIN3 left outer join ( select code_name, id from TJOIN4) s3 on (TJOIN3.name = s3.code_name and TJOIN3.flag='N');
 
 select TJOIN3.id,TJOIN3.name from TJOIN3 left outer join ( select code_name, id from TJOIN4) s3 on (TJOIN3.name = s3.code_name and TJOIN3.flag='N');
-
-explain vectorization detail
-select TJOIN3.id,TJOIN3.name from TJOIN3 left outer join ( select code_name, id from TJOIN4) s3 on (TJOIN3.name = s3.code_name and TJOIN3.flag='N') limit 1;
 
 select TJOIN3.id,TJOIN3.name from TJOIN3 left outer join ( select code_name, id from TJOIN4) s3 on (TJOIN3.name = s3.code_name and TJOIN3.flag='N') limit 1;
