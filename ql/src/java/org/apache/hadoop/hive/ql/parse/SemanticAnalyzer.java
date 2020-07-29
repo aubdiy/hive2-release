@@ -11480,7 +11480,6 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           SessionState.get().getLineageState()
               .mapDirToOp(new Path(createVwDesc.getViewName()), sinkOp);
         }
-      return;
     }
 
     // If we're creating views and ColumnAccessInfo is already created, we should not run these, since
