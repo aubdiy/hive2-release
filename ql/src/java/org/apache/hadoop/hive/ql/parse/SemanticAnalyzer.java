@@ -11484,7 +11484,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
     // If we're creating views and ColumnAccessInfo is already created, we should not run these, since
     // it means that in step 2, the ColumnAccessInfo was already created
-    if (!getQB().isView() ||  getColumnAccessInfo() == null) {
+    if (!getQB().isView() || getColumnAccessInfo() == null || getColumnAccessInfo().getTableToColumnAccessMap().isEmpty()) {
       // 6. Generate table access stats if required
       if (HiveConf.getBoolVar(this.conf, HiveConf.ConfVars.HIVE_STATS_COLLECT_TABLEKEYS)) {
         TableAccessAnalyzer tableAccessAnalyzer = new TableAccessAnalyzer(pCtx);
