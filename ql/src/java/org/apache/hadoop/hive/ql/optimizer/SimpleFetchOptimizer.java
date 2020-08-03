@@ -253,24 +253,27 @@ public class SimpleFetchOptimizer extends Transform {
       return null;
     }
     Operator<?> op = ts.getChildOperators().get(0);
-    for (; ; op = op.getChildOperators().get(0)) {
-      if (op instanceof SelectOperator) {
-        if (!checkExpressions((SelectOperator) op)) {
+
+    if(!op.getChildOperators().isEmpty()) {
+      for (; ; op = op.getChildOperators().get(0)) {
+        if (op instanceof SelectOperator) {
+          if (!checkExpressions((SelectOperator) op)) {
+            return null;
+          }
+          continue;
+        }
+
+        if (!(op instanceof LimitOperator || (op instanceof FilterOperator && bypassFilter))) {
+          break;
+        }
+
+        if (op.getChildOperators() == null || op.getChildOperators().size() != 1) {
           return null;
         }
-        continue;
-      }
 
-      if (!(op instanceof LimitOperator || (op instanceof FilterOperator && bypassFilter))) {
-        break;
-      }
-
-      if (op.getChildOperators() == null || op.getChildOperators().size() != 1) {
-        return null;
-      }
-
-      if (op instanceof FilterOperator) {
-        fetch.setFiltered(true);
+        if (op instanceof FilterOperator) {
+          fetch.setFiltered(true);
+        }
       }
     }
 
