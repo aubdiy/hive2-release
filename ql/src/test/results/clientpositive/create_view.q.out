@@ -554,8 +554,8 @@ POSTHOOK: Input: default@table1
 POSTHOOK: Input: default@view4
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@view5
-POSTHOOK: Lineage: view5.key1 SIMPLE [(table1)table1.FieldSchema(name:key, type:int, comment:null), ]
-POSTHOOK: Lineage: view5.key2 SIMPLE [(table1)table1.FieldSchema(name:key, type:int, comment:null), ]
+POSTHOOK: Lineage: view5.key1 EXPRESSION [(table1)table1.FieldSchema(name:key, type:int, comment:null), ]
+POSTHOOK: Lineage: view5.key2 EXPRESSION [(table1)table1.FieldSchema(name:key, type:int, comment:null), ]
 Warning: Shuffle Join JOIN[6][tables = [$hdt$_0, $hdt$_1]] in Stage 'Stage-1:MAPRED' is a cross product
 PREHOOK: query: SELECT * FROM view5
 PREHOOK: type: QUERY
@@ -1081,9 +1081,9 @@ POSTHOOK: type: CREATEVIEW
 POSTHOOK: Input: default@src
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@view12
-POSTHOOK: Lineage: view12.key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
+POSTHOOK: Lineage: view12.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: view12.mycol SCRIPT []
-POSTHOOK: Lineage: view12.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
+POSTHOOK: Lineage: view12.value EXPRESSION [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: DESCRIBE EXTENDED view12
 PREHOOK: type: DESCTABLE
 PREHOOK: Input: default@view12

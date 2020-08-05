@@ -387,10 +387,10 @@ POSTHOOK: Output: default@v
 POSTHOOK: Lineage: v._c0 SIMPLE []
 POSTHOOK: Lineage: v._c2 SIMPLE []
 POSTHOOK: Lineage: v._c4 SIMPLE []
-POSTHOOK: Lineage: v.ca SIMPLE [(a)a.FieldSchema(name:ca, type:string, comment:null), ]
-POSTHOOK: Lineage: v.caa SIMPLE [(a)a.FieldSchema(name:caa, type:string, comment:null), ]
-POSTHOOK: Lineage: v.cb SIMPLE [(b)b.FieldSchema(name:cb, type:string, comment:null), ]
-POSTHOOK: Lineage: v.cbb SIMPLE [(b)b.FieldSchema(name:cbb, type:string, comment:null), ]
+POSTHOOK: Lineage: v.ca EXPRESSION [(a)a.FieldSchema(name:ca, type:string, comment:null), ]
+POSTHOOK: Lineage: v.caa EXPRESSION [(a)a.FieldSchema(name:caa, type:string, comment:null), ]
+POSTHOOK: Lineage: v.cb EXPRESSION [(b)b.FieldSchema(name:cb, type:string, comment:null), ]
+POSTHOOK: Lineage: v.cbb EXPRESSION [(b)b.FieldSchema(name:cbb, type:string, comment:null), ]
 PREHOOK: query: desc formatted v
 PREHOOK: type: DESCTABLE
 PREHOOK: Input: default@v

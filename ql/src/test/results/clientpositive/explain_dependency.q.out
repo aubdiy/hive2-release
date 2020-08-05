@@ -41,8 +41,8 @@ POSTHOOK: Input: default@srcpart
 POSTHOOK: Input: default@v2
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@V3
-POSTHOOK: Lineage: V3.key SIMPLE [(srcpart)srcpart.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: V3.value SIMPLE [(src)src2.FieldSchema(name:value, type:string, comment:default), ]
+POSTHOOK: Lineage: V3.key EXPRESSION [(srcpart)srcpart.FieldSchema(name:key, type:string, comment:default), ]
+POSTHOOK: Lineage: V3.value EXPRESSION [(src)src2.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: CREATE VIEW V4 AS 
   SELECT src1.key, src2.value as value1, src3.value as value2 
   FROM V1 src1 JOIN V2 src2 on src1.key = src2.key JOIN src src3 ON src2.key = src3.key
@@ -63,9 +63,9 @@ POSTHOOK: Input: default@v1
 POSTHOOK: Input: default@v2
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@V4
-POSTHOOK: Lineage: V4.key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: V4.value1 SIMPLE [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: V4.value2 SIMPLE [(src)src3.FieldSchema(name:value, type:string, comment:default), ]
+POSTHOOK: Lineage: V4.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
+POSTHOOK: Lineage: V4.value1 EXPRESSION [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
+POSTHOOK: Lineage: V4.value2 EXPRESSION [(src)src3.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: EXPLAIN DEPENDENCY 
   SELECT key, count(1) FROM srcpart WHERE ds IS NOT NULL GROUP BY key
 PREHOOK: type: QUERY

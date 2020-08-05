@@ -114,7 +114,7 @@ POSTHOOK: Input: default@cbo_t1
 POSTHOOK: Input: default@v1
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@v3
-POSTHOOK: Lineage: v3.val SIMPLE [(cbo_t1)cbo_t1.FieldSchema(name:value, type:string, comment:null), ]
+POSTHOOK: Lineage: v3.val EXPRESSION [(cbo_t1)cbo_t1.FieldSchema(name:value, type:string, comment:null), ]
 PREHOOK: query: select count(val) from v3 where val != '1'
 PREHOOK: type: QUERY
 PREHOOK: Input: default@cbo_t1

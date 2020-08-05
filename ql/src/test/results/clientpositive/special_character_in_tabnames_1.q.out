@@ -17009,8 +17009,8 @@ POSTHOOK: type: CREATEVIEW
 POSTHOOK: Input: default@src/_/cbo
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@cv1
-POSTHOOK: Lineage: cv1.key SIMPLE [(src/_/cbo)b.FieldSchema(name:key, type:string, comment:null), ]
-POSTHOOK: Lineage: cv1.value SIMPLE [(src/_/cbo)b.FieldSchema(name:value, type:string, comment:null), ]
+POSTHOOK: Lineage: cv1.key EXPRESSION [(src/_/cbo)b.FieldSchema(name:key, type:string, comment:null), ]
+POSTHOOK: Lineage: cv1.value EXPRESSION [(src/_/cbo)b.FieldSchema(name:value, type:string, comment:null), ]
 PREHOOK: query: select * from cv1
 PREHOOK: type: QUERY
 PREHOOK: Input: default@cv1
@@ -18872,7 +18872,7 @@ POSTHOOK: Input: default@c/b/o_t1
 POSTHOOK: Input: default@v1
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@v3
-POSTHOOK: Lineage: v3.val SIMPLE [(c/b/o_t1)c/b/o_t1.FieldSchema(name:value, type:string, comment:null), ]
+POSTHOOK: Lineage: v3.val EXPRESSION [(c/b/o_t1)c/b/o_t1.FieldSchema(name:value, type:string, comment:null), ]
 PREHOOK: query: select count(val) from v3 where val != '1'
 PREHOOK: type: QUERY
 PREHOOK: Input: default@c/b/o_t1

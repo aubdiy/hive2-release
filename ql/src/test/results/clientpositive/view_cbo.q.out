@@ -173,7 +173,7 @@ POSTHOOK: Input: default@src
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@v
 POSTHOOK: Lineage: v.c EXPRESSION [(src)b.null, ]
-POSTHOOK: Lineage: v.key SIMPLE [(src)b.FieldSchema(name:key, type:string, comment:default), ]
+POSTHOOK: Lineage: v.key EXPRESSION [(src)b.FieldSchema(name:key, type:string, comment:default), ]
 PREHOOK: query: desc formatted v
 PREHOOK: type: DESCTABLE
 PREHOOK: Input: default@v
@@ -251,8 +251,8 @@ POSTHOOK: type: CREATEVIEW
 POSTHOOK: Input: default@src
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@v
-POSTHOOK: Lineage: v.key SIMPLE [(src)b.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: v.value SIMPLE [(src)b.FieldSchema(name:value, type:string, comment:default), ]
+POSTHOOK: Lineage: v.key EXPRESSION [(src)b.FieldSchema(name:key, type:string, comment:default), ]
+POSTHOOK: Lineage: v.value EXPRESSION [(src)b.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: desc formatted v
 PREHOOK: type: DESCTABLE
 PREHOOK: Input: default@v
@@ -314,7 +314,7 @@ POSTHOOK: type: CREATEVIEW
 POSTHOOK: Input: default@src
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@v
-POSTHOOK: Lineage: v.key SIMPLE [(src)a.FieldSchema(name:key, type:string, comment:default), ]
+POSTHOOK: Lineage: v.key EXPRESSION [(src)a.FieldSchema(name:key, type:string, comment:default), ]
 PREHOOK: query: desc formatted v
 PREHOOK: type: DESCTABLE
 PREHOOK: Input: default@v

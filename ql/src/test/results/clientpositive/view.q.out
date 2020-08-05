@@ -86,9 +86,9 @@ POSTHOOK: Input: db1@table1
 POSTHOOK: Input: db1@table2
 POSTHOOK: Output: database:db1
 POSTHOOK: Output: db1@v3
-POSTHOOK: Lineage: v3.k SIMPLE [(table2)t2.FieldSchema(name:key, type:string, comment:null), ]
-POSTHOOK: Lineage: v3.key SIMPLE [(table1)t1.FieldSchema(name:key, type:string, comment:null), ]
-POSTHOOK: Lineage: v3.value SIMPLE [(table1)t1.FieldSchema(name:value, type:string, comment:null), ]
+POSTHOOK: Lineage: v3.k EXPRESSION [(table2)t2.FieldSchema(name:key, type:string, comment:null), ]
+POSTHOOK: Lineage: v3.key EXPRESSION [(table1)t1.FieldSchema(name:key, type:string, comment:null), ]
+POSTHOOK: Lineage: v3.value EXPRESSION [(table1)t1.FieldSchema(name:value, type:string, comment:null), ]
 PREHOOK: query: CREATE VIEW v4 AS SELECT * FROM db1.table1
 PREHOOK: type: CREATEVIEW
 PREHOOK: Input: db1@table1
@@ -125,9 +125,9 @@ POSTHOOK: Input: db1@table1
 POSTHOOK: Input: db1@table2
 POSTHOOK: Output: database:db1
 POSTHOOK: Output: db1@v6
-POSTHOOK: Lineage: v6.k SIMPLE [(table2)t2.FieldSchema(name:key, type:string, comment:null), ]
-POSTHOOK: Lineage: v6.key SIMPLE [(table1)t1.FieldSchema(name:key, type:string, comment:null), ]
-POSTHOOK: Lineage: v6.value SIMPLE [(table1)t1.FieldSchema(name:value, type:string, comment:null), ]
+POSTHOOK: Lineage: v6.k EXPRESSION [(table2)t2.FieldSchema(name:key, type:string, comment:null), ]
+POSTHOOK: Lineage: v6.key EXPRESSION [(table1)t1.FieldSchema(name:key, type:string, comment:null), ]
+POSTHOOK: Lineage: v6.value EXPRESSION [(table1)t1.FieldSchema(name:value, type:string, comment:null), ]
 PREHOOK: query: CREATE VIEW v7 AS SELECT key from table1
 PREHOOK: type: CREATEVIEW
 PREHOOK: Input: db1@table1
