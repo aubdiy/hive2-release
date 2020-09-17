@@ -73,6 +73,9 @@ public class VectorUDFDateDiffColCol extends VectorExpression {
       return;
     }
 
+    /*
+     * Propagate null values for a two-input operator and set isRepeating and noNulls appropriately.
+     */
     NullUtil.propagateNullsColCol(inputColVector1, inputColVector2, outV, batch.selected, batch.size, batch.selectedInUse);
 
     LongColumnVector convertedVector1 = toDateArray(batch, inputTypes[0], inputColVector1, dateVector1);
@@ -151,9 +154,6 @@ public class VectorUDFDateDiffColCol extends VectorExpression {
   private LongColumnVector toDateArray(VectorizedRowBatch batch, Type colType,
                                        ColumnVector inputColVector, LongColumnVector dateVector) {
     int size = batch.size;
-    if (colType == Type.DATE) {
-      return (LongColumnVector) inputColVector;
-    }
 
     if (size > dateVector.vector.length) {
       if (dateVector1 == dateVector) {
@@ -170,6 +170,10 @@ public class VectorUDFDateDiffColCol extends VectorExpression {
         TimestampColumnVector tcv = (TimestampColumnVector) inputColVector;
         copySelected(tcv, batch.selectedInUse, batch.selected, batch.size, dateVector);
         return dateVector;
+      case DATE:
+          LongColumnVector dcv = (LongColumnVector) inputColVector;
+          dcv.copySelected(batch.selectedInUse, batch.selected, batch.size, dateVector);
+          return dateVector;   
 
       case STRING:
       case CHAR:
