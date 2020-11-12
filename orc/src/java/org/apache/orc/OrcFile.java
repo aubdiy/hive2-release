@@ -109,6 +109,8 @@ public class OrcFile {
     HIVE_12055(3), // vectorized writer
     HIVE_13083(4), // decimal writer updating present stream wrongly
 
+    ORC_203(7),   // trim long strings & record they were trimmed
+
     // Don't use any magic numbers here except for the below:
     FUTURE(Integer.MAX_VALUE); // a version from a future writer
 
@@ -153,7 +155,7 @@ public class OrcFile {
       return values[val];
     }
   }
-  public static final WriterVersion CURRENT_WRITER = WriterVersion.HIVE_13083;
+  public static final WriterVersion CURRENT_WRITER = WriterVersion.ORC_203;
 
   public enum EncodingStrategy {
     SPEED, COMPRESSION

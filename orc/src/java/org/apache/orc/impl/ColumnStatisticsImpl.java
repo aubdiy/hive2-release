@@ -26,17 +26,7 @@ import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableComparator;
-import org.apache.orc.BinaryColumnStatistics;
-import org.apache.orc.BooleanColumnStatistics;
-import org.apache.orc.ColumnStatistics;
-import org.apache.orc.DateColumnStatistics;
-import org.apache.orc.DecimalColumnStatistics;
-import org.apache.orc.DoubleColumnStatistics;
-import org.apache.orc.IntegerColumnStatistics;
-import org.apache.orc.OrcProto;
-import org.apache.orc.StringColumnStatistics;
-import org.apache.orc.TimestampColumnStatistics;
-import org.apache.orc.TypeDescription;
+import org.apache.orc.*;
 
 public class ColumnStatisticsImpl implements ColumnStatistics {
 
@@ -369,9 +359,13 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
 
   protected static final class StringStatisticsImpl extends ColumnStatisticsImpl
       implements StringColumnStatistics {
+    public static final int MAX_BYTES_RECORDED = 1024;
     private Text minimum = null;
     private Text maximum = null;
     private long sum = 0;
+
+    private boolean isLowerBoundSet = false;
+    private boolean isUpperBoundSet = false;
 
     StringStatisticsImpl() {
     }
@@ -395,37 +389,53 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
       super.reset();
       minimum = null;
       maximum = null;
+      isLowerBoundSet = false;
+      isUpperBoundSet = false;
       sum = 0;
     }
 
     @Override
     public void updateString(Text value) {
-      if (minimum == null) {
-        maximum = minimum = new Text(value);
-      } else if (minimum.compareTo(value) > 0) {
-        minimum = new Text(value);
-      } else if (maximum.compareTo(value) < 0) {
-        maximum = new Text(value);
-      }
-      sum += value.getLength();
+      updateString(value.getBytes(), 0, value.getLength(), 1);
     }
 
     @Override
     public void updateString(byte[] bytes, int offset, int length,
                              int repetitions) {
       if (minimum == null) {
-        maximum = minimum = new Text();
-        maximum.set(bytes, offset, length);
+        if(length > MAX_BYTES_RECORDED) {
+          minimum = truncateLowerBound(bytes, offset);
+          maximum = truncateUpperBound(bytes, offset);
+          isLowerBoundSet = true;
+          isUpperBoundSet = true;
+        } else {
+          maximum = minimum = new Text();
+          maximum.set(bytes, offset, length);
+          isLowerBoundSet = false;
+          isUpperBoundSet = false;
+        }
       } else if (WritableComparator.compareBytes(minimum.getBytes(), 0,
           minimum.getLength(), bytes, offset, length) > 0) {
-        minimum = new Text();
-        minimum.set(bytes, offset, length);
+        if(length > MAX_BYTES_RECORDED) {
+          minimum = truncateLowerBound(bytes, offset);
+          isLowerBoundSet = true;
+        } else {
+          minimum = new Text();
+          minimum.set(bytes, offset, length);
+          isLowerBoundSet = false;
+        }
       } else if (WritableComparator.compareBytes(maximum.getBytes(), 0,
           maximum.getLength(), bytes, offset, length) < 0) {
-        maximum = new Text();
-        maximum.set(bytes, offset, length);
+        if(length > MAX_BYTES_RECORDED) {
+          maximum = truncateUpperBound(bytes, offset);
+          isUpperBoundSet = true;
+        } else {
+          maximum = new Text();
+          maximum.set(bytes, offset, length);
+          isUpperBoundSet = false;
+        }
       }
-      sum += length * repetitions;
+      sum += (long)length * repetitions;
     }
 
     @Override
@@ -436,16 +446,40 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
           if (str.minimum != null) {
             maximum = new Text(str.getMaximum());
             minimum = new Text(str.getMinimum());
-          } else {
-          /* both are empty */
+          }
+          /* str.minimum == null when lower bound set */
+          else if (str.isLowerBoundSet) {
+            minimum = new Text(str.getLowerBound());
+            isLowerBoundSet = str.isLowerBoundSet;
+
+            /* check for upper bound before setting max */
+            if (str.isUpperBoundSet) {
+              maximum = new Text(str.getUpperBound());
+              isUpperBoundSet = str.isUpperBoundSet;
+            } else {
+              maximum = new Text(str.getMaximum());
+            }
+          }
+          else {
+            /* both are empty */
             maximum = minimum = null;
           }
         } else if (str.minimum != null) {
           if (minimum.compareTo(str.minimum) > 0) {
-            minimum = new Text(str.getMinimum());
+            if(str.isLowerBoundSet) {
+              minimum = new Text(str.getLowerBound());
+              isLowerBoundSet = str.isLowerBoundSet;
+            } else {
+              minimum = new Text(str.getMinimum());
+            }
           }
           if (maximum.compareTo(str.maximum) < 0) {
-            maximum = new Text(str.getMaximum());
+            if(str.isUpperBoundSet) {
+              maximum = new Text(str.getUpperBound());
+              isUpperBoundSet = str.isUpperBoundSet;
+            }else {
+              maximum = new Text(str.getMaximum());
+            }
           }
         }
         sum += str.sum;
@@ -461,7 +495,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     public OrcProto.ColumnStatistics.Builder serialize() {
       OrcProto.ColumnStatistics.Builder result = super.serialize();
       OrcProto.StringStatistics.Builder str =
-        OrcProto.StringStatistics.newBuilder();
+          OrcProto.StringStatistics.newBuilder();
       if (getNumberOfValues() != 0) {
         str.setMinimum(getMinimum());
         str.setMaximum(getMaximum());
@@ -473,11 +507,45 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
 
     @Override
     public String getMinimum() {
-      return minimum == null ? null : minimum.toString();
+      /* if we have lower bound set (in case of truncation)
+      getMinimum will be null */
+      if(isLowerBoundSet) {
+        return null;
+      } else {
+        return minimum == null ? null : minimum.toString();
+      }
     }
 
     @Override
     public String getMaximum() {
+      /* if we have upper bound is set (in case of truncation)
+      getMaximum will be null */
+      if(isUpperBoundSet) {
+        return null;
+      } else {
+        return maximum == null ? null : maximum.toString();
+      }
+    }
+
+    /**
+     * Get the string with
+     * length = Min(StringStatisticsImpl.MAX_BYTES_RECORDED, getMinimum())
+     *
+     * @return lower bound
+     */
+    @Override
+    public String getLowerBound() {
+      return minimum == null ? null : minimum.toString();
+    }
+
+    /**
+     * Get the string with
+     * length = Min(StringStatisticsImpl.MAX_BYTES_RECORDED, getMaximum())
+     *
+     * @return upper bound
+     */
+    @Override
+    public String getUpperBound() {
       return maximum == null ? null : maximum.toString();
     }
 
@@ -489,15 +557,122 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     @Override
     public String toString() {
       StringBuilder buf = new StringBuilder(super.toString());
-      if (getNumberOfValues() != 0) {
-        buf.append(" min: ");
-        buf.append(getMinimum());
-        buf.append(" max: ");
-        buf.append(getMaximum());
+      if (minimum != null) {
+        if (isLowerBoundSet) {
+          buf.append(" lower: ");
+        } else {
+          buf.append(" min: ");
+        }
+        buf.append(getLowerBound());
+        if (isUpperBoundSet) {
+          buf.append(" upper: ");
+        } else {
+          buf.append(" max: ");
+        }
+        buf.append(getUpperBound());
         buf.append(" sum: ");
         buf.append(sum);
       }
       return buf.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (!(o instanceof StringStatisticsImpl)) {
+        return false;
+      }
+      if (!super.equals(o)) {
+        return false;
+      }
+
+      StringStatisticsImpl that = (StringStatisticsImpl) o;
+
+      if (sum != that.sum) {
+        return false;
+      }
+      if (minimum != null ? !minimum.equals(that.minimum) : that.minimum != null) {
+        return false;
+      }
+      if (maximum != null ? !maximum.equals(that.maximum) : that.maximum != null) {
+        return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      int result = super.hashCode();
+      result = 31 * result + (minimum != null ? minimum.hashCode() : 0);
+      result = 31 * result + (maximum != null ? maximum.hashCode() : 0);
+      result = 31 * result + (int) (sum ^ (sum >>> 32));
+      return result;
+    }
+
+    private static void appendCodePoint(Text result, int codepoint) {
+      if (codepoint < 0 || codepoint > 0x1f_ffff) {
+        throw new IllegalArgumentException("Codepoint out of range " +
+            codepoint);
+      }
+      byte[] buffer = new byte[4];
+      if (codepoint < 0x7f) {
+        buffer[0] = (byte) codepoint;
+        result.append(buffer, 0, 1);
+      } else if (codepoint <= 0x7ff) {
+        buffer[0] = (byte) (0xc0 | (codepoint >> 6));
+        buffer[1] = (byte) (0x80 | (codepoint & 0x3f));
+        result.append(buffer, 0 , 2);
+      } else if (codepoint < 0xffff) {
+        buffer[0] = (byte) (0xe0 | (codepoint >> 12));
+        buffer[1] = (byte) (0x80 | ((codepoint >> 6) & 0x3f));
+        buffer[2] = (byte) (0x80 | (codepoint & 0x3f));
+        result.append(buffer, 0, 3);
+      } else {
+        buffer[0] = (byte) (0xf0 | (codepoint >> 18));
+        buffer[1] = (byte) (0x80 | ((codepoint >> 12) & 0x3f));
+        buffer[2] = (byte) (0x80 | ((codepoint >> 6) & 0x3f));
+        buffer[3] = (byte) (0x80 | (codepoint & 0x3f));
+        result.append(buffer, 0, 4);
+      }
+    }
+
+    /**
+     * Create a text that is truncated to at most MAX_BYTES_RECORDED at a
+     * character boundary with the last code point incremented by 1.
+     * The length is assumed to be greater than MAX_BYTES_RECORDED.
+     * @param text the text to truncate
+     * @param from the index of the first character
+     * @return truncated Text value
+     */
+    private static Text truncateUpperBound(final byte[] text, final int from) {
+      int followingChar = Utf8Utils.findLastCharacter(text, from,
+          from + MAX_BYTES_RECORDED);
+      int lastChar = Utf8Utils.findLastCharacter(text, from, followingChar - 1);
+      Text result = new Text();
+      result.set(text, from, lastChar - from);
+      appendCodePoint(result,
+          Utf8Utils.getCodePoint(text, lastChar, followingChar - lastChar) + 1);
+      return result;
+    }
+
+    /**
+     * Create a text that is truncated to at most MAX_BYTES_RECORDED at a
+     * character boundary.
+     * The length is assumed to be greater than MAX_BYTES_RECORDED.
+     * @param text Byte array to truncate
+     * @param from This is the index of the first character
+     * @return truncated {@link Text}
+     */
+    private static Text truncateLowerBound(final byte[] text, final int from) {
+
+      int lastChar = Utf8Utils.findLastCharacter(text, from,
+          from + MAX_BYTES_RECORDED);
+      Text result = new Text();
+      result.set(text, from, lastChar - from);
+      return result;
     }
   }
 

@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,19 +33,10 @@ import java.util.TreeMap;
 
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.ql.util.JavaDataModel;
-import org.apache.orc.BinaryColumnStatistics;
-import org.apache.orc.BloomFilterIO;
-import org.apache.orc.OrcConf;
-import org.apache.orc.OrcFile;
-import org.apache.orc.OrcProto;
+import org.apache.orc.*;
 import org.apache.orc.OrcProto.BloomFilterIndex;
 import org.apache.orc.OrcProto.RowIndex;
 import org.apache.orc.OrcProto.Stream;
-import org.apache.orc.OrcUtils;
-import org.apache.orc.StringColumnStatistics;
-import org.apache.orc.StripeInformation;
-import org.apache.orc.TypeDescription;
-import org.apache.orc.Writer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -928,7 +920,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   private static abstract class StringBaseTreeWriter extends TreeWriter {
     private static final int INITIAL_DICTIONARY_SIZE = 4096;
     private final OutStream stringOutput;
-    private final IntegerWriter lengthOutput;
+    protected final IntegerWriter lengthOutput;
     private final IntegerWriter rowOutput;
     protected final StringRedBlackTree dictionary =
         new StringRedBlackTree(INITIAL_DICTIONARY_SIZE);
@@ -1213,7 +1205,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
    * Under the covers, char is written to ORC the same way as string.
    */
   private static class CharTreeWriter extends StringBaseTreeWriter {
-    private final int itemLength;
+    private final int maxLength;
     private final byte[] padding;
 
     CharTreeWriter(int columnId,
@@ -1221,8 +1213,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         StreamFactory writer,
         boolean nullable) throws IOException {
       super(columnId, schema, writer, nullable);
-      itemLength = schema.getMaxLength();
-      padding = new byte[itemLength];
+      maxLength = schema.getMaxLength();
+      // utf-8 is currently 4 bytes long, but it could be upto 6
+      padding = new byte[6 * maxLength];
     }
 
     @Override
@@ -1234,30 +1227,36 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         if (vector.noNulls || !vector.isNull[0]) {
           byte[] ptr;
           int ptrOffset;
-          if (vec.length[0] >= itemLength) {
+          final int ptrLength;
+          int charLength = Utf8Utils.charLength(vec.vector[0], vec.start[0], vec.length[0]);
+          if (charLength >= maxLength) {
             ptr = vec.vector[0];
             ptrOffset = vec.start[0];
+            ptrLength = Utf8Utils.truncateBytesTo(maxLength, vec.vector[0], vec.start[0], vec.length[0]);
           } else {
             ptr = padding;
+            // the padding is exactly 1 byte per char
+            ptrLength = vec.length[0] + (maxLength - charLength);
             ptrOffset = 0;
             System.arraycopy(vec.vector[0], vec.start[0], ptr, 0,
                 vec.length[0]);
-            Arrays.fill(ptr, vec.length[0], itemLength, (byte) ' ');
+            Arrays.fill(ptr, vec.length[0], ptrLength, (byte) ' ');
           }
           if (useDictionaryEncoding) {
-            int id = dictionary.add(ptr, ptrOffset, itemLength);
+            int id = dictionary.add(ptr, ptrOffset, ptrLength);
             for(int i=0; i < length; ++i) {
               rows.add(id);
             }
           } else {
             for(int i=0; i < length; ++i) {
-              directStreamOutput.write(ptr, ptrOffset, itemLength);
-              directLengthOutput.write(itemLength);
+              directStreamOutput.write(ptr, ptrOffset, ptrLength);
+              directLengthOutput.write(ptrLength);
             }
           }
-          indexStatistics.updateString(ptr, ptrOffset, itemLength, length);
+          indexStatistics.updateString(ptr, ptrOffset, ptrLength, length);
           if (createBloomFilter) {
-            bloomFilter.addBytes(ptr, ptrOffset, itemLength);
+            // translate from UTF-8 to the default charset
+            bloomFilter.addString(new String(ptr, ptrOffset, ptrLength, StandardCharsets.UTF_8));
           }
         }
       } else {
@@ -1265,26 +1264,33 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           if (vec.noNulls || !vec.isNull[i + offset]) {
             byte[] ptr;
             int ptrOffset;
-            if (vec.length[offset + i] >= itemLength) {
+            final int ptrLength;
+            int charLength = Utf8Utils.charLength(vec.vector[offset + i], vec.start[offset + i], vec.length[offset + i]);
+            if (charLength >= maxLength) {
               ptr = vec.vector[offset + i];
               ptrOffset = vec.start[offset + i];
+              ptrLength = Utf8Utils
+                  .truncateBytesTo(maxLength, vec.vector[offset + i], vec.start[offset + i], vec.length[offset + i]);
             } else {
               // it is the wrong length, so copy it
               ptr = padding;
+              // the padding is exactly 1 byte per char
+              ptrLength = vec.length[offset + i] + (maxLength - charLength);
               ptrOffset = 0;
               System.arraycopy(vec.vector[offset + i], vec.start[offset + i],
                   ptr, 0, vec.length[offset + i]);
-              Arrays.fill(ptr, vec.length[offset + i], itemLength, (byte) ' ');
+              Arrays.fill(ptr, vec.length[offset + i], ptrLength, (byte) ' ');
             }
             if (useDictionaryEncoding) {
-              rows.add(dictionary.add(ptr, ptrOffset, itemLength));
+              rows.add(dictionary.add(ptr, ptrOffset, ptrLength));
             } else {
-              directStreamOutput.write(ptr, ptrOffset, itemLength);
-              directLengthOutput.write(itemLength);
+              directStreamOutput.write(ptr, ptrOffset, ptrLength);
+              directLengthOutput.write(ptrLength);
             }
-            indexStatistics.updateString(ptr, ptrOffset, itemLength, 1);
+            indexStatistics.updateString(ptr, ptrOffset, ptrLength, 1);
             if (createBloomFilter) {
-              bloomFilter.addBytes(ptr, ptrOffset, itemLength);
+              // translate from UTF-8 to the default charset
+              bloomFilter.addString(new String(ptr, ptrOffset, ptrLength, StandardCharsets.UTF_8));
             }
           }
         }
@@ -1313,7 +1319,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       BytesColumnVector vec = (BytesColumnVector) vector;
       if (vector.isRepeating) {
         if (vector.noNulls || !vector.isNull[0]) {
-          int itemLength = Math.min(vec.length[0], maxLength);
+          int itemLength = Utf8Utils.truncateBytesTo(maxLength, vec.vector[0], vec.start[0], vec.length[0]);
           if (useDictionaryEncoding) {
             int id = dictionary.add(vec.vector[0], vec.start[0], itemLength);
             for(int i=0; i < length; ++i) {
@@ -1329,13 +1335,15 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           indexStatistics.updateString(vec.vector[0], vec.start[0],
               itemLength, length);
           if (createBloomFilter) {
-            bloomFilter.addBytes(vec.vector[0], vec.start[0], itemLength);
+            // translate from UTF-8 to the default charset
+            bloomFilter.addString(new String(vec.vector[0], vec.start[0], itemLength, StandardCharsets.UTF_8));
           }
         }
       } else {
         for(int i=0; i < length; ++i) {
           if (vec.noNulls || !vec.isNull[i + offset]) {
-            int itemLength = Math.min(vec.length[offset + i], maxLength);
+            int itemLength = Utf8Utils.
+                truncateBytesTo(maxLength, vec.vector[offset + i], vec.start[offset + i], vec.length[offset + i]);
             if (useDictionaryEncoding) {
               rows.add(dictionary.add(vec.vector[offset + i],
                   vec.start[offset + i], itemLength));
@@ -1347,8 +1355,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
             indexStatistics.updateString(vec.vector[offset + i],
                 vec.start[offset + i], itemLength, 1);
             if (createBloomFilter) {
-              bloomFilter.addBytes(vec.vector[offset + i],
-                  vec.start[offset + i], itemLength);
+              // translate from UTF-8 to the default charset
+              bloomFilter.addString(new String(vec.vector[0], vec.start[0], itemLength, StandardCharsets.UTF_8));
             }
           }
         }
